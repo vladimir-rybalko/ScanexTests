@@ -1,17 +1,215 @@
+
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
-	<meta charset="UTF-8">
-	<title>Тестовые задания</title>
+	<title>Leaflet Quick Start Guide Example</title>
+	<meta charset="utf-8" />
+
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link href="http://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet">
+	<link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+	<link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet/v0.7.7/leaflet.css" />
+	<link rel="stylesheet" href="./css/easy-button.css">
+	<link rel="stylesheet" href="./css/bootstrap-slider.min.css">
+	<link rel="stylesheet" href="./css/bootstrap-datepicker3.min.css">
+	<style>
+		html,body,#map{
+			width: 100%;
+			height: 100%;
+			margin: 0;
+			padding: 0;
+		}
+		#ex1Slider{
+			width: 100%;
+		}
+		#ex1Slider .slider-selection {
+			background: #BABABA;
+		}
+		.formQuery{
+			z-index: initial;
+		}
+		.header{
+			padding-bottom: 9px;
+			text-align: center;
+			padding-top: 15px;
+		}
+		.table{
+			margin-bottom:0px;
+		}
+	</style>
 </head>
 <body>
-	<h2>Тестовые задания:</h2>
-	<ul>
-		<li><a href="./task1/index.html">Задание 1</a></li>
-		<li><a href="./task2/index.html">Задание 2</a></li>
-		<li><a href="./task3/index.html">Задание 3</a></li>
-		<li><a href="./task4/index.html">Задание 4</a></li>
-	</ul>
+	<div id="map"></div>
+	<script src="http://cdn.leafletjs.com/leaflet/v0.7.7/leaflet.js"></script>
+	<script src="./js/easy-button.js"></script>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
+	<script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+	<script src="./js/bootstrap-slider.min.js"></script>
+	<script src="./js/bootstrap-datepicker.min.js"></script>
+	<script src="./js/locales/bootstrap-datepicker.ru.js"></script>
+	<script src="http://fgnass.github.io/spin.js/spin.min.js"></script>
+	<script src="http://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
+	<script>
+		L.SpinMapMixin = {
+			spin: function (state, options){
+				if (!!state) {
+					// start spinning !
+					if (!this._spinner) {
+						this._spinner = new Spinner(options).spin(this._container);
+						this._spinning = 0;
+					}
+					this._spinning++;
+				}
+				else {
+					this._spinning--;
+					if (this._spinning <= 0) {
+						// end spinning !
+						if (this._spinner) {
+							this._spinner.stop();
+							this._spinner = null;
+						}
+					}
+				}
+			}
+		};
 
+		L.Map.include(L.SpinMapMixin);
+		L.Map.addInitHook(function () {
+			this.on('layeradd', function (e) {
+				if (e.layer.loading) this.spin(true);
+				if (typeof e.layer.on != 'function') return;
+				e.layer.on('data:loading', function () { this.spin(true); }, this);
+				e.layer.on('data:loaded',  function () { this.spin(false); }, this);
+			}, this);
+			this.on('layerremove', function (e) {
+				if (e.layer.loading) this.spin(false);
+				if (typeof e.layer.on != 'function') return;
+				e.layer.off('data:loaded');
+				e.layer.off('data:loading');
+			}, this);
+		});
+		var widthDocument = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+
+		var app={
+			hidePanel: false
+		}
+		var map = L.map('map').setView([35.74651, 141.32813], 3);
+		L.tileLayer('http://tiles.maps.sputnik.ru/{z}/{x}/{y}.png', {
+			maxZoom: 18,
+			attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
+				'<a href="http://maps.sputnik.ru">Спутник</a>'
+
+		}).addTo(map);
+
+		var formQuery = L.control({position: widthDocument >= 500 ? 'bottomleft': 'topright'});
+		formQuery.onAdd = function (map) {
+			var div = L.DomUtil.create('div', 'formQuery');
+			div.innerHTML='<div class="container"><div class="row"><div class="col-sm-6" style="background-color:#F1F1F1;padding-bottom:5px;"><div class="header"><p class="bg-primary">Форма запроса данных</p></div><input id="ex1" data-slider-id="ex1Slider" type="text" name="somename"   data-slider-min="0" data-slider-max="100" data-slider-step="10" data-slider-value="20"><table class="table"><thead><tr><th><a href="#" class="btn small" id="date-start" data-date-format="yyyy-mm-dd" data-date="2016-01-01">Начальная дата</a></th><th><a href="#" class="btn small" id="date-end" data-date-format="yyyy-mm-dd" data-date="2016-01-02">Конечная дата</a></th></tr></thead><tbody><tr><td id="date-start-display">2016-01-01</td><td id="date-end-display">2016-01-02</td></tr></tbody></table><button type="button" id="btnOk" class="btn btn-primary" style="display: block; width: 100%; margin-bottom: 15px;">Получить данные</button></div></div></div>';
+			return div;
+		};
+		formQuery.onRemove = function (map) {
+			// console.log('remove');
+		};
+		L.easyButton('fa fa-info fa-lg', function(btn, map){
+			var arrayData = [], heat, mag;
+
+			function updateHeat(mag){
+				var updateArray = $.grep(arrayData, function(e){
+					return e[2] >= mag
+				});
+				if(heat)
+					heat.setLatLngs(updateArray);
+			}
+
+			function dateFormater(date){
+				return date.getFullYear() + '-' + ('0' + (date.getMonth() + 1)).slice(-2) + '-' + ('0' + date.getDate()).slice(-2);
+			}
+
+			if(!app.hidePanel){
+				formQuery.addTo(map);
+				formQuery.getContainer().addEventListener('mouseover', function () {
+					map.dragging.disable();
+				});
+				formQuery.getContainer().addEventListener('touchstart', function () {
+					map.dragging.disable();
+				});
+
+				formQuery.getContainer().addEventListener('mouseout', function () {
+					map.dragging.enable();
+				});
+				formQuery.getContainer().addEventListener('touchend', function () {
+					map.dragging.enable();
+				});
+
+
+				var slider = new Slider('#ex1', {
+					formatter: function(value) {
+						return 'Магнитуда: ' + value;
+					}
+				}).on('change', function(obj){
+					mag = obj.newValue;
+					updateHeat(mag);
+				});
+
+				$('#date-start').datepicker({
+					language: "ru",
+					orientation: widthDocument >= 500 ? "top left" : "bottom left"
+				}).on('changeDate', function(ev){
+					var startDate = dateFormater(new Date(ev.date));
+					$('#date-start-display').attr("data-date", startDate);
+					$('#date-start-display').text(startDate);
+					$('#date-start').datepicker('hide');
+				});
+				$('#date-end').datepicker({
+					language: "ru",
+					orientation: widthDocument >= 500 ? "top right" : "bottom right"
+				}).on('changeDate', function(ev){
+					var endDate = dateFormater(new Date(ev.date));
+					$('#date-end-display').attr("data-date", endDate);
+					$('#date-end-display').text(endDate);
+					$('#date-end').datepicker('hide');
+				});
+
+				$("#btnOk").click(function(){
+					arrayData = [];
+					if(heat) map.removeLayer(heat);
+					var dataFrom = $("#date-start").attr("data-date");
+					var dataTo = $("#date-end").attr("data-date");
+					mag = slider.getValue();
+					map.spin(true);
+					$.ajax({
+						url : 'http://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=' + dataFrom + '&endtime=' + dataTo,
+						type: 'get',
+						dataType: 'json',
+						success: function(data) {
+							map.spin(false);
+							$.each(data.features, function(i,v){
+								arrayData.push([v.geometry.coordinates[1],v.geometry.coordinates[0],v.geometry.coordinates[2]])
+							});
+
+							heat = L.heatLayer(arrayData,{
+								radius: 25,
+								minOpacity: 0.3,
+								maxZoom: 10,
+								blur:25,
+								gradient: {0.4: 'blue', 0.65: 'lime', 1: 'red'}
+							}).addTo(map);
+
+							updateHeat(mag);
+						},
+						error: function () {
+							map.spin(false);
+						}
+					});
+				});
+
+				app.hidePanel = true;
+			}
+			else{
+				map.removeControl(formQuery);
+				app.hidePanel = false;
+			}
+		}).addTo(map);
+	</script>
 </body>
 </html>
