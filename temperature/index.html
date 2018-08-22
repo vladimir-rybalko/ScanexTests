@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Temperature</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.3/dist/leaflet.css"/>
+	<script src="https://unpkg.com/leaflet@1.3.3/dist/leaflet.js"></script>
+	<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+	<script src="https://d3js.org/d3.v4.min.js"></script>
+	<script src="https://naver.github.io/billboard.js/release/latest/dist/billboard.min.js"></script>
+	<link rel="stylesheet" href="https://naver.github.io/billboard.js/release/latest/dist/billboard.min.css">
+	<style>
+		html, body {
+			height: 100%;
+			margin: 0;
+			padding: 0;
+		}
+		#map {
+			width: 100%;
+			height: 100%;
+		}
+		#chart{
+			width: 550px;
+		}
+	</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+	var apikey = '6Q81IXBUQ7', dataStorage = {}, grid = {x:{show: true}, y:{show: true}}, axis = {x: {type: "category",categories: ["Янв","Фев","Март","Апр","Май","Июнь","Июль","Авг","Сент","Окт","Нояб","Дек"]}}, chartValue = {type: "bar",columns: []},
+	round = function(num){
+		var n = .0;
+		var real = Math.floor(num);
+		num = num - real;
+		if(num >= 0.25 && num < 0.50)
+			n = .25;
+		if(num >= 0.50 && num < 75)
+			n = .50;
+		if(num >= 0.75 && num < 0.99)
+			n = .75;
+		return real + n;
+	},
+	getTemp = function(year, id){
+		return $.ajax({
+			url: "http://maps.kosmosnimki.ru/rest/ver1/layers/11A381497B4A4AE4A4ED6580E1674B72/search",
+			data: {
+				apikey: apikey,
+				query: 'year("date")=' + year + ' and "gridpoint_id"=' + id
+			},
+			type: "GET"
+		});
+	},
+	generateChart = function(){
+		var chart = bb.generate({
+			bindto: "#chart",
+			data: chartValue,
+			axis: axis,
+			grid: grid,
+			tooltip: {
+				show: true,
+				grouped: false,
+				format: {
+					value: function(value, ratio, id, index) {
+						return value.toFixed(1) + " &deg;C";
+					}
+				}
+			}
+		});
+		// chart.groups([["sum", $("#yearSelect option:selected").text()]]);
+	}
+	onClick = function(e) {
+		var getGmx_id = $.ajax({
+			url: "http://maps.kosmosnimki.ru/rest/ver1/layers/35FB2C338FED4B64B7A326FBFE54BE73/search",
+			data: {
+				apikey: apikey,
+				query: '"lat"=' + round(e.latlng.lat) + 'and"lon"=' + round(e.latlng.lng)
+			},
+			type: "GET"
+		});
+		getGmx_id.fail(function(){
+			console.log("Не смог получить идентификатор!");
+		});
+		
+		getGmx_id.done(function(data){
+			var id = data.features[0].properties.gmx_id;
+			Promise.all([getTemp(2018, id), getTemp(2017, id), getTemp(2016, id), getTemp(2015, id), getTemp(2014, id), getTemp(2013, id), getTemp(2012, id), getTemp(2011, id), getTemp(2010, id)]).then(values => {
+				values.forEach(function(val, i){
+					var yearValue = {},
+					yearVal = "";
+					val.features.forEach(function(feat, j){
+						if(yearValue[feat.properties.Date.split("-")[1]] == undefined){
+							yearValue[feat.properties.Date.split("-")[1]] = [feat.properties.AvgTemp];
+							yearVal = feat.properties.Date.split("-")[0];
+						}
+						else
+							yearValue[feat.properties.Date.split("-")[1]].push(feat.properties.AvgTemp);
+					})
+					var key = Object.keys(yearValue);
+					var out = [yearVal.toString()];
+					key.forEach(function(k){
+						out.push(yearValue[k].reduce((a, b) => a + b, 0)/yearValue[k].length)
+					});
+					dataStorage[yearVal] = out;
+				})
+				var sum = ["sum"];
+				for (var i = 1; i <= 12; i++) {
+					var tmp = [];
+					var key = Object.keys(dataStorage);
+					key.forEach(function(k){
+						if(dataStorage[k][i] != undefined)
+							tmp.push(dataStorage[k][i]);
+					});
+					sum.push(tmp.reduce((a, b) => a + b, 0)/tmp.length)
+				}
+				dataStorage["sum"] = sum;
+				chartValue.columns = [];
+				var selectValue = $("#yearSelect option:selected").text();
+				chartValue.columns.push(dataStorage["sum"], dataStorage[selectValue]);
+				generateChart();
+			});
+		});
+		
+		var popup = L.popup({maxWidth: 560})
+		.setLatLng(e.latlng)
+		.setContent('<div><select id="yearSelect"><option selected value="2018">2018</option><option value="2017">2017</option><option value="2016">2016</option><option value="2015">2015</option><option value="2014">2014</option><option value="2013">2013</option><option value="2012">2012</option><option value="2011">2011</option><option value="2010">2010</option></select></div><div id="chart"></div>')
+		.openOn(map);
+
+		$("#yearSelect").on("change", function(e){
+			var selectValue = $("#yearSelect option:selected").text();
+
+			$("#yearSelect option:selected").each(function() {
+				chartValue.columns = [];
+				chartValue.columns.push(dataStorage["sum"], dataStorage[selectValue]);
+				generateChart();
+			});
+		});
+	},
+	map = L.map('map').setView([55.25, 37.25], 10),
+	layer = L.tileLayer('http://tilessputnik.ru/{z}/{x}/{y}.png?', {
+		maxZoom: 18,
+		attribution: ''
+	}).addTo(map);
+	map.on('click', onClick);
+	
+</script>
+</body>
+</html>
