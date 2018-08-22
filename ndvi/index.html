@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Leaflet NDVI</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.3/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.3.3/dist/leaflet.js"></script>
+    <style>
+		html, body {
+			height: 100%;
+			margin: 0;
+			padding: 0;
+		}
+		#map {
+			width: 100%;
+			height: 100%;
+		}
+	</style>
+	<script src="./TileLayer.NDVI.js"></script>
+</head>
+<body>
+<div id="map"></div>
+<script>
+	var map = L.map('map').setView([45.52883953144113, 39.728622436523445], 10);
+	var ndvi = L.tileLayer('http://maps.kosmosnimki.ru/rest/ver1/service/tile?&map=7CBA5FE822ED4660A61E23512E4AC600&request=getTile&apikey=6Q81IXBUQ7&layers=15822EDA09C44141A8E0037487CD0720&z={z}&x={x}&y={y}', {
+		maxZoom: 18,
+		attribution: ''
+	}).addTo(map);
+	
+	var ndvi_color = L.tileLayer.ndvi('http://maps.kosmosnimki.ru/rest/ver1/service/tile?&map=7CBA5FE822ED4660A61E23512E4AC600&request=getTile&apikey=6Q81IXBUQ7&layers=15822EDA09C44141A8E0037487CD0720&z={z}&x={x}&y={y}', {
+            attribution: ''
+        }).addTo(map);
+
+	L.control.layers({}, {"NDVI": ndvi, "NDVI-colorized":ndvi_color}).addTo(map);
+</script>
+</body>
+</html>
